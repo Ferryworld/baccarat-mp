@@ -97,6 +97,10 @@ function buildBigEyeRoad(bigRoad) {
 
 /**
  * 综合策略分析
+ * 策略优先级：高置信度优先展示；多策略并列时用 Tab 切换
+ *
+ * 赌场实际损耗（House Edge）参考：
+ *   庄（含5%佣金）1.06% | 闲 1.24% | 和 14.36%（切勿押和）
  */
 function analyzeHistory(history) {
   const nonTie = history.filter(x => x !== TIE);
@@ -105,7 +109,7 @@ function analyzeHistory(history) {
   const tieCount = history.filter(x => x === TIE).length;
   const total = history.length;
 
-  // 当前连续
+  // ── 当前连续 streak ──────────────────────────────────────
   let streak = 0, streakType = null;
   for (let i = nonTie.length - 1; i >= 0; i--) {
     if (!streakType) { streakType = nonTie[i]; streak = 1; }
@@ -113,21 +117,46 @@ function analyzeHistory(history) {
     else break;
   }
 
-  // 最近10把
+  // ── 最近 10 把 ────────────────────────────────────────────
   const last10 = nonTie.slice(-10);
   const recentB = last10.filter(x => x === BANKER).length;
   const recentP = last10.filter(x => x === PLAYER).length;
 
-  // 交替检测（最近6把）
+  // ── 交替检测（最近 6 把全部交替 = 剁）────────────────────
   const last6 = nonTie.slice(-6);
   let isChop = last6.length >= 4;
   for (let i = 1; i < last6.length; i++) {
     if (last6[i] === last6[i - 1]) { isChop = false; break; }
   }
 
-  // 构建策略列表
+  // ── 双打走势：当前串之前 4 把形如 AABB（A≠B）────────────
+  const prevNonTie = nonTie.slice(0, nonTie.length - streak); // 去掉当前连续串
+  const last4prev = prevNonTie.slice(-4);
+  const pairPatternBase = (
+    last4prev.length === 4 &&
+    last4prev[0] === last4prev[1] &&
+    last4prev[2] === last4prev[3] &&
+    last4prev[0] !== last4prev[2]
+  );
+
+  // ── 冷门检测：最近 8 把中一方出现 ≤ 1 次 ────────────────
+  const last8 = nonTie.slice(-8);
+  const bIn8 = last8.filter(x => x === BANKER).length;
+  const pIn8 = last8.filter(x => x === PLAYER).length;
+  const coldSide = last8.length >= 6
+    ? (bIn8 <= 1 && pIn8 >= 5 ? BANKER : (pIn8 <= 1 && bIn8 >= 5 ? PLAYER : null))
+    : null;
+
+  // ── 全局庄闲比 ───────────────────────────────────────────
+  const bpTotal = bankerCount + playerCount;
+  const bRatioNum = bpTotal > 0 ? bankerCount / bpTotal : 0.5;
+
+  // ═══════════════════════════════════════════════════════════
+  // 策略列表（按触发条件依次压入，多策略时 Tab 展示）
+  // ═══════════════════════════════════════════════════════════
   const strategies = [];
 
+  // ① 顺势策略 ── 连续 3 把以上跟走
   if (streak >= 3) {
     strategies.push({
       name: '顺势策略',
@@ -139,6 +168,20 @@ function analyzeHistory(history) {
     });
   }
 
+  // ② 断龙策略 ── 超长龙（≥6）后逆势等待转折（与顺势并列，供对比）
+  if (streak >= 6) {
+    const oppType = streakType === BANKER ? PLAYER : BANKER;
+    strategies.push({
+      name: '断龙策略',
+      rec: oppType,
+      confidence: 'low',
+      confidenceLabel: '低',
+      reason: `${LABELS[streakType]}已连 ${streak} 把超长龙，龙尾逆押${LABELS[oppType]}等待转折${oppType === PLAYER ? '，同省庄家佣金' : ''}`,
+      icon: '🔪',
+    });
+  }
+
+  // ③ 剁策略 ── 近 6 把完全交替
   if (isChop) {
     const oppType = nonTie[nonTie.length - 1] === BANKER ? PLAYER : BANKER;
     strategies.push({
@@ -146,41 +189,104 @@ function analyzeHistory(history) {
       rec: oppType,
       confidence: 'mid',
       confidenceLabel: '中',
-      reason: `近${last6.length}把庄闲交替，押与上把相反的${LABELS[oppType]}`,
+      reason: `近 ${last6.length} 把庄闲交替，押与上把相反的${LABELS[oppType]}${oppType === PLAYER ? '（押闲无佣金）' : ''}`,
       icon: '⚡',
     });
   }
 
+  // ④ 双打走势 ── 前 4 把 AABB，当前开始新对
+  if (pairPatternBase && streak <= 2) {
+    if (streak === 1) {
+      // 刚开始新对，预测再来一把完成该对
+      strategies.push({
+        name: '双打走势',
+        rec: streakType,
+        confidence: 'mid',
+        confidenceLabel: '中',
+        reason: `走势呈${LABELS[last4prev[0]]}${LABELS[last4prev[0]]}${LABELS[last4prev[2]]}${LABELS[last4prev[2]]}成对规律，续押${LABELS[streakType]}完成本对`,
+        icon: '✌️',
+      });
+    } else {
+      // 当前对已完成（streak=2），预测切换到对立方
+      const oppType = streakType === BANKER ? PLAYER : BANKER;
+      strategies.push({
+        name: '双打走势',
+        rec: oppType,
+        confidence: 'low',
+        confidenceLabel: '低',
+        reason: `成对规律：当前${LABELS[streakType]}对已完成，切换押${LABELS[oppType]}${oppType === PLAYER ? '（无佣金）' : ''}`,
+        icon: '✌️',
+      });
+    }
+  }
+
+  // ⑤ 冷门回归 ── 近 8 把某方极少出现，均值回归押冷门方
+  if (coldSide) {
+    const coldCount = coldSide === BANKER ? bIn8 : pIn8;
+    strategies.push({
+      name: '冷门回归',
+      rec: coldSide,
+      confidence: 'low',
+      confidenceLabel: '低',
+      reason: `近 ${last8.length} 把${LABELS[coldSide]}仅 ${coldCount} 次，极度冷门，均值回归押${LABELS[coldSide]}${coldSide === PLAYER ? '（押闲省佣）' : ''}`,
+      icon: '❄️',
+    });
+  }
+
+  // ⑥ 大势策略 ── 15 把后，庄/闲比例 >62% 跟趋势
   if (nonTie.length >= 15) {
-    const bRatio = bankerCount / (bankerCount + playerCount);
-    if (bRatio > 0.6) {
+    if (bRatioNum > 0.62 && bRatioNum < 0.68) {
       strategies.push({
         name: '大势策略',
         rec: BANKER,
         confidence: 'low',
         confidenceLabel: '低',
-        reason: `本靴庄胜率 ${(bRatio * 100).toFixed(0)}%，整体偏庄`,
+        reason: `本靴庄胜 ${(bRatioNum * 100).toFixed(0)}%，趋势偏庄，顺大势押庄`,
         icon: '📊',
       });
-    } else if (bRatio < 0.4) {
+    } else if (bRatioNum < 0.38 && bRatioNum > 0.32) {
       strategies.push({
         name: '大势策略',
         rec: PLAYER,
         confidence: 'low',
         confidenceLabel: '低',
-        reason: `本靴闲胜率 ${((1-bRatio)*100).toFixed(0)}%，整体偏闲`,
+        reason: `本靴闲胜 ${((1 - bRatioNum) * 100).toFixed(0)}%，趋势偏闲，押闲同省庄家5%佣金`,
         icon: '📊',
       });
     }
   }
 
+  // ⑦ 均值强势回归 ── 20 把后，偏差 >68% 时逆势押弱势方
+  if (nonTie.length >= 20) {
+    if (bRatioNum >= 0.68) {
+      strategies.push({
+        name: '均值回归',
+        rec: PLAYER,
+        confidence: 'low',
+        confidenceLabel: '低',
+        reason: `庄胜率高达 ${(bRatioNum * 100).toFixed(0)}%，偏差过大，反押闲等待均值回归，同省庄家5%佣金`,
+        icon: '⚖️',
+      });
+    } else if (bRatioNum <= 0.32) {
+      strategies.push({
+        name: '均值回归',
+        rec: BANKER,
+        confidence: 'low',
+        confidenceLabel: '低',
+        reason: `闲胜率高达 ${((1 - bRatioNum) * 100).toFixed(0)}%，偏差过大，押庄回归（庄理论胜率占优）`,
+        icon: '⚖️',
+      });
+    }
+  }
+
+  // ⑧ 热庄/热闲 ── 近 10 把偏差 ≥ 3 把
   if (last10.length >= 6 && recentB > recentP + 2) {
     strategies.push({
       name: '热庄策略',
       rec: BANKER,
       confidence: 'mid',
       confidenceLabel: '中',
-      reason: `近10把庄${recentB}闲${recentP}，近期热庄`,
+      reason: `近10把庄 ${recentB} 闲 ${recentP}，热庄持续，顺势押庄`,
       icon: '🔥',
     });
   } else if (last10.length >= 6 && recentP > recentB + 2) {
@@ -189,24 +295,25 @@ function analyzeHistory(history) {
       rec: PLAYER,
       confidence: 'mid',
       confidenceLabel: '中',
-      reason: `近10把庄${recentB}闲${recentP}，近期热闲`,
+      reason: `近10把庄 ${recentB} 闲 ${recentP}，热闲持续，押闲且无需支付5%庄家佣金`,
       icon: '🔥',
     });
   }
 
+  // ⑨ 观望策略（默认）── 无明显信号时建议保守
   if (strategies.length === 0) {
     strategies.push({
-      name: '默认策略',
+      name: '观望策略',
       rec: BANKER,
       confidence: 'low',
       confidenceLabel: '低',
-      reason: '暂无明显走势，理论押庄胜率最优（House Edge 1.06%）',
-      icon: '💡',
+      reason: '走势信号不明，建议观望或减小注额。押和赌场优势高达14.36%，务必避免',
+      icon: '👁️',
     });
   }
 
-  const bRatio = (bankerCount + playerCount) > 0
-    ? (bankerCount / (bankerCount + playerCount) * 100).toFixed(1)
+  const bRatio = bpTotal > 0
+    ? (bRatioNum * 100).toFixed(1)
     : '—';
 
   return {
