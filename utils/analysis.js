@@ -8,33 +8,65 @@ const LABELS = { B: '庄', P: '闲', T: '和' };
 const COLORS = { B: '#e53e3e', P: '#3182ce', T: '#38a169' };
 
 /**
- * 构建大路（Big Road）数据
- * 返回 [{col, row, result, ties}]
+ * 构建大路（Big Road）数据，支持蛇尾横向溢出
+ * 竖向最多 6 行，超出后横向右移（大路标准规则）
+ * 返回 [{col, row, result, ties}]，col/row 为物理格子坐标
  */
 function buildBigRoad(history) {
-  const grid = [];
-  let col = 0, row = 0;
+  const ROWS = 6;
+  const cells = [];
+  const occupied = new Set(); // "col,row"
+
+  let curCol = 0, curRow = 0;
   let lastNonTie = null;
+  let streakStartCol = 0;
+  let isFirst = true;
 
   for (let i = 0; i < history.length; i++) {
     const r = history[i];
+
     if (r === TIE) {
-      if (grid.length > 0) {
-        grid[grid.length - 1].ties = (grid[grid.length - 1].ties || 0) + 1;
+      if (cells.length > 0) {
+        cells[cells.length - 1].ties = (cells[cells.length - 1].ties || 0) + 1;
       }
       continue;
     }
-    if (lastNonTie === null) {
-      col = 0; row = 0;
+
+    if (isFirst) {
+      curCol = 0; curRow = 0;
+      streakStartCol = 0;
+      isFirst = false;
     } else if (r === lastNonTie) {
-      row++;
+      // 同一连续：尝试向下，到底或被占则横向右移
+      const nextRow = curRow + 1;
+      if (nextRow < ROWS && !occupied.has(`${curCol},${nextRow}`)) {
+        curRow = nextRow;
+      } else {
+        // 蛇尾：在当前行向右找空格
+        let nextCol = curCol + 1;
+        let snapRow = curRow;
+        while (occupied.has(`${nextCol},${snapRow}`)) {
+          nextCol++;
+        }
+        curCol = nextCol;
+        curRow = snapRow;
+      }
     } else {
-      col++; row = 0;
+      // 新一串：从上一串起始列的下一列开始，跳过被蛇尾占据的列
+      let nextCol = streakStartCol + 1;
+      while (occupied.has(`${nextCol},0`)) {
+        nextCol++;
+      }
+      curCol = nextCol;
+      curRow = 0;
+      streakStartCol = nextCol;
     }
-    grid.push({ col, row, result: r, ties: 0 });
+
+    occupied.add(`${curCol},${curRow}`);
+    cells.push({ col: curCol, row: curRow, result: r, ties: 0 });
     lastNonTie = r;
   }
-  return grid;
+  return cells;
 }
 
 /**
