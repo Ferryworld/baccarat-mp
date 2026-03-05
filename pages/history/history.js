@@ -35,7 +35,7 @@ Page({
         for (let r = 0; r < 6; r++) {
           for (let c = 0; c < gridCols; c++) {
             const cell = bigRoad.find(b => b.row === r && b.col === c);
-            flatGrid.push(cell || { empty: true });
+            flatGrid.push(cell || { empty: true, col: c, row: r });
           }
         }
         return {

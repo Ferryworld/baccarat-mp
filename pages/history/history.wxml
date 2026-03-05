@@ -56,7 +56,7 @@
     <scroll-view scroll-x="true" class="mini-road-scroll">
       <view class="mini-road-grid" style="width:{{item.gridCols * 42}}rpx; height:{{6 * 42}}rpx">
         <block wx:for="{{item.flatGrid}}" wx:key="index" wx:for-item="cell">
-          <view class="mini-cell">
+          <view class="mini-cell" style="left:{{cell.col * 42}}rpx; top:{{cell.row * 42}}rpx">
             <view wx:if="{{!cell.empty}}"
               class="bead bead-{{cell.result}}"
               style="width:36rpx;height:36rpx;font-size:16rpx">
