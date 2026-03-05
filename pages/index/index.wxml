@@ -1,0 +1,208 @@
+<!-- pages/index/index.wxml -->
+<view class="container">
+
+  <!-- ===== 顶部标题 ===== -->
+  <view class="header">
+    <view class="header-top">
+      <view class="shoe-badge">第 {{shoeNumber}} 靴</view>
+      <text class="header-title">百家乐走势分析</text>
+      <view class="header-actions">
+        <view class="icon-btn" bindtap="scanImage">
+          <text class="icon-text">📷</text>
+        </view>
+        <view class="icon-btn" bindtap="newShoe">
+          <text class="icon-text">🔄</text>
+        </view>
+      </view>
+    </view>
+    <view class="gold-divider"></view>
+
+    <!-- 统计栏 -->
+    <view class="stats-row" wx:if="{{analysis}}">
+      <view class="stat-item">
+        <text class="stat-val">{{analysis.total}}</text>
+        <text class="stat-label">总局</text>
+      </view>
+      <view class="stat-item">
+        <text class="stat-val banker-color">{{analysis.bankerCount}}</text>
+        <text class="stat-label">庄</text>
+      </view>
+      <view class="stat-item">
+        <text class="stat-val player-color">{{analysis.playerCount}}</text>
+        <text class="stat-label">闲</text>
+      </view>
+      <view class="stat-item">
+        <text class="stat-val tie-color">{{analysis.tieCount}}</text>
+        <text class="stat-label">和</text>
+      </view>
+      <view class="stat-item">
+        <text class="stat-val gold-color">{{analysis.bRatio}}%</text>
+        <text class="stat-label">庄胜率</text>
+      </view>
+    </view>
+  </view>
+
+  <!-- ===== 大路走势图 ===== -->
+  <view class="card">
+    <view class="card-title">大路走势图</view>
+    <scroll-view scroll-x="true" class="road-scroll" enhanced="true" show-scrollbar="false">
+      <view class="road-grid" style="width:{{gridCols * 54}}rpx; height:{{gridRows * 54}}rpx">
+        <block wx:for="{{flatGrid}}" wx:key="index">
+          <view class="road-cell" style="left:{{item.col * 54}}rpx; top:{{item.row * 54}}rpx">
+            <view wx:if="{{!item.empty}}"
+              class="bead bead-{{item.result}}"
+              style="width:46rpx;height:46rpx;font-size:18rpx">
+              {{item.result === 'B' ? '庄' : item.result === 'P' ? '闲' : '和'}}
+            </view>
+            <!-- 和局计数角标 -->
+            <view wx:if="{{!item.empty && item.ties > 0}}" class="tie-badge">{{item.ties}}</view>
+          </view>
+        </block>
+        <!-- 空状态 -->
+        <view wx:if="{{history.length === 0}}" class="road-empty">
+          点击下方按钮开始记录，或拍照导入走势
+        </view>
+      </view>
+    </scroll-view>
+  </view>
+
+  <!-- ===== 输入按钮 ===== -->
+  <view class="input-section">
+    <view class="input-row">
+      <view class="result-btn btn-banker" bindtap="addResult" data-result="B">
+        <text class="btn-main">庄</text>
+        <text class="btn-sub">Banker</text>
+      </view>
+      <view class="result-btn btn-player" bindtap="addResult" data-result="P">
+        <text class="btn-main">闲</text>
+        <text class="btn-sub">Player</text>
+      </view>
+      <view class="result-btn btn-tie" bindtap="addResult" data-result="T">
+        <text class="btn-main">和</text>
+        <text class="btn-sub">Tie</text>
+      </view>
+    </view>
+    <view class="util-row">
+      <view class="util-btn" bindtap="undo" wx:if="{{history.length > 0}}">
+        ↩ 撤销
+      </view>
+      <view class="util-btn scan-btn" bindtap="scanImage">
+        📷 拍照识别
+      </view>
+      <view class="util-btn danger-btn" bindtap="clearShoe" wx:if="{{history.length > 0}}">
+        🗑 清空
+      </view>
+    </view>
+  </view>
+
+  <!-- ===== 策略建议 ===== -->
+  <view class="card strategy-card" wx:if="{{analysis && analysis.strategies.length > 0}}">
+    <view class="card-title">策略建议</view>
+
+    <!-- 策略 Tab -->
+    <scroll-view scroll-x="true" class="strategy-tabs" wx:if="{{analysis.strategies.length > 1}}">
+      <view
+        wx:for="{{analysis.strategies}}" wx:key="index"
+        class="strat-tab {{currentStrategy === index ? 'strat-tab-active' : ''}}"
+        bindtap="switchStrategy" data-index="{{index}}">
+        {{item.icon}} {{item.name}}
+      </view>
+    </scroll-view>
+
+    <!-- 主推荐 -->
+    <block wx:for="{{analysis.strategies}}" wx:key="index">
+      <view wx:if="{{currentStrategy === index}}" class="rec-card rec-{{item.rec}}">
+        <view class="rec-bead bead bead-{{item.rec}}">
+          {{item.rec === 'B' ? '庄' : item.rec === 'P' ? '闲' : '和'}}
+        </view>
+        <view class="rec-content">
+          <view class="rec-title-row">
+            <text class="rec-title">建议押{{item.rec === 'B' ? '庄家' : item.rec === 'P' ? '闲家' : '和局'}}</text>
+            <view class="conf-tag tag-{{item.confidence}}">置信度：{{item.confidenceLabel}}</view>
+          </view>
+          <text class="rec-reason">{{item.reason}}</text>
+        </view>
+      </view>
+    </block>
+
+    <!-- 连续信息 -->
+    <view class="streak-info" wx:if="{{analysis.streak >= 2}}">
+      <view class="bead bead-{{analysis.streakType}}" style="width:36rpx;height:36rpx;font-size:14rpx">
+        {{analysis.streakType === 'B' ? '庄' : analysis.streakType === 'P' ? '闲' : '和'}}
+      </view>
+      <text class="streak-text">
+        当前连续 {{analysis.streak}} 把{{analysis.streakType === 'B' ? '庄' : '闲'}}
+        {{analysis.streak >= 6 ? ' 🔥超长龙！' : analysis.streak >= 4 ? ' 长龙' : ''}}
+      </text>
+    </view>
+
+    <view class="chop-info" wx:if="{{analysis.isChop}}">
+      ⚡ 检测到"剁"走势（庄闲交替）
+    </view>
+
+    <view class="disclaimer">⚠️ 百家乐每把独立，历史走势无法预测未来，请理性游玩</view>
+  </view>
+
+  <!-- ===== 扫描预览弹窗 ===== -->
+  <view class="modal-mask" wx:if="{{showScanPreview}}" bindtap="closeScanPreview">
+    <view class="modal-box" catchtap="">
+      <view class="modal-title">📷 走势图识别</view>
+
+      <image class="scan-image" src="{{scannedImage}}" mode="aspectFit" />
+
+      <!-- 识别中 -->
+      <view class="scan-loading" wx:if="{{scanning}}">
+        <view class="loading-spinner"></view>
+        <text class="loading-text">AI 正在识别走势…</text>
+      </view>
+
+      <!-- 识别结果 -->
+      <view class="scan-result" wx:if="{{!scanning && scanResult}}">
+        <view class="result-header">
+          <text class="result-count">识别到 {{scanResult.count}} 把结果</text>
+          <view class="conf-tag tag-{{scanResult.confidence === 'high' ? 'high' : scanResult.confidence === 'medium' ? 'mid' : 'low'}}">
+            {{scanResult.confidence === 'high' ? '高置信度' : scanResult.confidence === 'medium' ? '中置信度' : '低置信度'}}
+          </view>
+        </view>
+        <text class="result-notes">{{scanResult.notes}}</text>
+
+        <!-- 预览珠串 -->
+        <scroll-view scroll-x="true" class="preview-beads">
+          <view class="bead bead-{{item}}"
+            wx:for="{{scanResult.results}}" wx:key="index"
+            style="width:40rpx;height:40rpx;font-size:16rpx;flex-shrink:0;margin-right:6rpx">
+            {{item === 'B' ? '庄' : item === 'P' ? '闲' : '和'}}
+          </view>
+        </scroll-view>
+
+        <view class="scan-actions">
+          <view class="scan-btn-secondary" bindtap="retakeScan">重新拍摄</view>
+          <view class="scan-btn-primary" bindtap="confirmScanImport">确认导入</view>
+        </view>
+      </view>
+
+      <view class="modal-close" bindtap="closeScanPreview">✕ 关闭</view>
+    </view>
+  </view>
+
+  <!-- ===== API Key 配置弹窗 ===== -->
+  <view class="modal-mask" wx:if="{{showApiModal}}" bindtap="closeApiModal">
+    <view class="modal-box" catchtap="">
+      <view class="modal-title">🔑 配置 Claude API Key</view>
+      <text class="modal-desc">拍照识别功能需要 Claude API Key。\n请前往 console.anthropic.com 获取。</text>
+      <input
+        class="api-input"
+        value="{{apiKeyInput}}"
+        bindinput="onApiKeyInput"
+        placeholder="sk-ant-..."
+        placeholder-class="input-placeholder"
+        password="true"
+      />
+      <view class="modal-actions">
+        <view class="modal-btn-cancel" bindtap="closeApiModal">取消</view>
+        <view class="modal-btn-confirm" bindtap="saveApiKey">保存并识别</view>
+      </view>
+    </view>
+  </view>
+
+</view>

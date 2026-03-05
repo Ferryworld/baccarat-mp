@@ -1,0 +1,35 @@
+{
+  "pages": [
+    "pages/index/index",
+    "pages/history/history"
+  ],
+  "window": {
+    "backgroundTextStyle": "dark",
+    "navigationBarBackgroundColor": "#0a1628",
+    "navigationBarTitleText": "百家乐走势",
+    "navigationBarTextStyle": "white"
+  },
+  "tabBar": {
+    "color": "#888",
+    "selectedColor": "#c9a84c",
+    "backgroundColor": "#0f1e35",
+    "borderStyle": "black",
+    "list": [
+      {
+        "pagePath": "pages/index/index",
+        "text": "走势分析",
+        "iconPath": "images/tab_trend.png",
+        "selectedIconPath": "images/tab_trend_active.png"
+      },
+      {
+        "pagePath": "pages/history/history",
+        "text": "历史记录",
+        "iconPath": "images/tab_history.png",
+        "selectedIconPath": "images/tab_history_active.png"
+      }
+    ]
+  },
+  "style": "v2",
+  "sitemapLocation": "sitemap.json",
+  "lazyCodeLoading": "requiredComponents"
+}

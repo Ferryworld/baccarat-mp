@@ -1,0 +1,71 @@
+<!-- pages/history/history.wxml -->
+<view class="container">
+
+  <view class="header">
+    <text class="header-title">历史记录</text>
+    <view class="clear-btn" bindtap="clearAll" wx:if="{{totalStats.total > 0}}">
+      🗑 清空
+    </view>
+  </view>
+  <view class="gold-divider"></view>
+
+  <!-- 总计 -->
+  <view class="total-card" wx:if="{{totalStats.total > 0}}">
+    <view class="total-row">
+      <view class="total-item">
+        <text class="total-val">{{totalStats.shoes}}</text>
+        <text class="total-label">靴数</text>
+      </view>
+      <view class="total-item">
+        <text class="total-val">{{totalStats.total}}</text>
+        <text class="total-label">总局</text>
+      </view>
+      <view class="total-item">
+        <text class="total-val banker-color">{{totalStats.banker}}</text>
+        <text class="total-label">庄赢</text>
+      </view>
+      <view class="total-item">
+        <text class="total-val player-color">{{totalStats.player}}</text>
+        <text class="total-label">闲赢</text>
+      </view>
+      <view class="total-item">
+        <text class="total-val gold-color">{{totalStats.bRatio}}%</text>
+        <text class="total-label">庄胜率</text>
+      </view>
+    </view>
+  </view>
+
+  <!-- 空状态 -->
+  <view class="empty-state" wx:if="{{totalStats.total === 0}}">
+    <text class="empty-icon">🃏</text>
+    <text class="empty-text">暂无历史记录</text>
+    <text class="empty-sub">在走势分析页面开始记录</text>
+  </view>
+
+  <!-- 按靴分组 -->
+  <view class="shoe-card" wx:for="{{groupedHistory}}" wx:key="shoe">
+    <view class="shoe-header">
+      <view class="shoe-title-row">
+        <text class="shoe-title">{{item.label}}</text>
+        <view class="current-badge" wx:if="{{item.isCurrent}}">当前</view>
+      </view>
+      <text class="shoe-sub">{{item.totalLabel}} · 庄 {{item.analysis.bankerCount}} 闲 {{item.analysis.playerCount}} 和 {{item.analysis.tieCount}}</text>
+    </view>
+
+    <!-- 简易大路 -->
+    <scroll-view scroll-x="true" class="mini-road-scroll">
+      <view class="mini-road-grid" style="width:{{item.gridCols * 42}}rpx; height:{{6 * 42}}rpx">
+        <block wx:for="{{item.flatGrid}}" wx:key="index" wx:for-item="cell">
+          <view class="mini-cell">
+            <view wx:if="{{!cell.empty}}"
+              class="bead bead-{{cell.result}}"
+              style="width:36rpx;height:36rpx;font-size:16rpx">
+              {{cell.result === 'B' ? '庄' : cell.result === 'P' ? '闲' : '和'}}
+            </view>
+          </view>
+        </block>
+      </view>
+    </scroll-view>
+  </view>
+
+</view>
